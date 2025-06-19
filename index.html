@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AI 禮物與餐廳推薦對話</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Baloo+2:wght@600&display=swap');
+    body {
+      font-family: 'Baloo 2', 'Microsoft JhengHei', cursive, sans-serif;
+      background: linear-gradient(135deg, #fff3e0 0%, #ffe0b2 100%);
+      margin: 0;
+      padding: 0;
+      min-height: 100vh;
+    }
+    .container {
+      max-width: 520px;
+      margin: 48px auto;
+      background: #ffffff;
+      border-radius: 16px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+      padding: 24px;
+      border: 1px solid #ffcc80;
+    }
+    h1 {
+      text-align: center;
+      color: #ef6c00;
+      font-size: 2rem;
+      margin-bottom: 16px;
+    }
+    #chat {
+      height: 350px;
+      overflow-y: auto;
+      border: 1px solid #ffb74d;
+      border-radius: 8px;
+      padding: 16px;
+      background: #fff8e1;
+      margin-bottom: 16px;
+    }
+    .msg {
+      margin: 12px 0;
+    }
+    .user {
+      color: #ef6c00;
+      font-weight: bold;
+      background: #ffe0b2;
+      border-radius: 12px 12px 12px 0;
+      display: inline-block;
+      padding: 8px 12px;
+    }
+    .ai {
+      color: #ffffff;
+      font-weight: bold;
+      background: #ffa726;
+      border-radius: 12px 12px 0 12px;
+      display: inline-block;
+      padding: 8px 12px;
+    }
+    #inputArea {
+      display: flex;
+      gap: 8px;
+    }
+    #userInput {
+      flex: 1;
+      padding: 10px;
+      border-radius: 8px;
+      border: 1px solid #ffcc80;
+      font-size: 1rem;
+    }
+    #apiKeyInput {
+      border-radius: 8px;
+      border: 1px solid #ffcc80;
+      padding: 8px;
+      color: #ef6c00;
+    }
+    #saveKeyBtn {
+      padding: 8px 16px;
+      border: none;
+      border-radius: 8px;
+      background: #ffa726;
+      color: #fff;
+      font-weight: bold;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>AI 禮物與餐廳推薦</h1>
+    <div style="margin-bottom:12px; display:flex; gap:8px; align-items:center;">
+      <label for="apiKeyInput" style="color:#ef6c00;">Google API 金鑰:</label>
+      <input type="password" id="apiKeyInput" placeholder="請輸入 API 金鑰">
+      <button id="saveKeyBtn">儲存金鑰</button>
+    </div>
+
+    <div id="chat"></div>
+
+    <div id="inputArea">
+      <input type="text" id="userInput" placeholder="請輸入你的需求...">
+      <select id="topicSelect" style="border-radius:8px;padding:8px;font-size:1rem;">
+        <option value="gift">🎁 送禮推薦</option>
+        <option value="restaurant">🍴 餐廳推薦</option>
+      </select>
+    </div>
+    <form id="addRecordForm" style="margin-top:16px;display:flex;flex-wrap:wrap;gap:8px;align-items:center;background:#fffde7;padding:12px 8px 8px 8px;border-radius:10px;">
+      <input type="text" id="addName" placeholder="姓名" required style="flex:1;min-width:80px;padding:6px;border-radius:6px;border:1px solid #ffcc80;">
+      <input type="date" id="addDate" required style="flex:1;min-width:120px;padding:6px;border-radius:6px;border:1px solid #ffcc80;">
+      <input type="text" id="addGift" placeholder="禮物" required style="flex:1;min-width:80px;padding:6px;border-radius:6px;border:1px solid #ffcc80;">
+      <input type="text" id="addRestaurant" placeholder="餐廳" required style="flex:1;min-width:100px;padding:6px;border-radius:6px;border:1px solid #ffcc80;">
+      <button type="submit" style="padding:6px 18px;border:none;border-radius:6px;background:#ffa726;color:#fff;font-weight:bold;">新增紀錄</button>
+    </form>
+    <div id="history" style="margin-top:16px;"></div>
+  </div>
+
+  <script>
+    let API_KEY = '';
+    let API_URL = '';
+    const chat = document.getElementById('chat');
+    const userInput = document.getElementById('userInput');
+    const apiKeyInput = document.getElementById('apiKeyInput');
+    const saveKeyBtn = document.getElementById('saveKeyBtn');
+
+    function appendMsg(sender, text) {
+      const div = document.createElement('div');
+      div.className = 'msg';
+      div.innerHTML = `<span class="${sender}">${sender === 'user' ? '你' : 'AI'}：</span> ${text}`;
+      chat.appendChild(div);
+      chat.scrollTop = chat.scrollHeight;
+    }
+
+    function setApiKey(key) {
+      API_KEY = key;
+      // 使用新版 Gemini 1.5 Flash API 路徑
+      API_URL = 'https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=' + API_KEY;
+      localStorage.setItem('gemini_api_key', key);
+      apiKeyInput.value = key;
+    }
+
+    saveKeyBtn.onclick = () => {
+      const key = apiKeyInput.value.trim();
+      if (key) {
+        setApiKey(key);
+        appendMsg('ai', 'API 金鑰已儲存，請開始提問！');
+      }
+    };
+
+    apiKeyInput.addEventListener('keydown', e => {
+      if (e.key === 'Enter') saveKeyBtn.click();
+    });
+
+    window.onload = () => {
+      // 自動填入 API 金鑰
+      const defaultKey = 'AIzaSyBK933R0dHt8i-NjrRRjKBwWuwIKYICVDs';
+      let saved = localStorage.getItem('gemini_api_key');
+      if (!saved) {
+        setApiKey(defaultKey);
+      } else {
+        setApiKey(saved);
+      }
+      loadHistory(); // ✅ 載入生日禮物紀錄
+    };
+
+    async function askAI(question) {
+      if (!API_KEY) {
+        appendMsg('ai', '請先輸入 API 金鑰');
+        return;
+      }
+
+      const topic = document.getElementById('topicSelect').value;
+      let sysPrompt = '';
+      if (topic === 'gift') {
+        sysPrompt = '你是一個送禮顧問，請依據使用者提供的情境（對象、興趣、場合等）推薦適合的禮物，請用繁體中文回應。問題：';
+      } else if (topic === 'restaurant') {
+        sysPrompt = '你是一位美食推薦專家，請根據使用者的地點、偏好與場合，推薦適合的餐廳。請用繁體中文回應。問題：';
+      }
+
+      appendMsg('user', question);
+      userInput.value = '';
+      try {
+        const res = await fetch(API_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: sysPrompt + question }] }]
+          })
+        });
+
+        const data = await res.json();
+        console.log('Gemini API 回傳：', data);
+        let aiText = '無法取得回應，請稍後再試';
+        if (data.candidates && data.candidates[0]?.content?.parts) {
+          aiText = data.candidates[0].content.parts.map(p => p.text).join('');
+        } else if (data.error && data.error.message) {
+          aiText = 'API 錯誤：' + data.error.message;
+        }
+        appendMsg('ai', aiText);
+      } catch (e) {
+        console.error('API 請求失敗', e);
+        appendMsg('ai', '請確認網路連線或 API 金鑰是否正確');
+      }
+    }
+
+    userInput.addEventListener('keydown', e => {
+      if (e.key === 'Enter') {
+        const q = userInput.value.trim();
+        if (q) askAI(q);
+      }
+    });
+
+    // 語音輸入
+    const recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
+    recognition.lang = 'zh-TW';
+
+    const voiceButton = document.createElement('button');
+    voiceButton.textContent = '🎤 語音輸入';
+    voiceButton.style = 'padding: 10px 22px; border: none; border-radius: 8px; background: #ffa726; color: #fff; font-size: 1rem; font-weight: bold; cursor: pointer; margin-left: 8px;';
+    voiceButton.onclick = () => recognition.start();
+
+    recognition.onresult = (event) => {
+      if (event.results[0].isFinal) {
+        const transcript = event.results[0][0].transcript;
+        userInput.value = transcript;
+        askAI(transcript);
+      }
+    };
+
+    recognition.onerror = (event) => {
+      appendMsg('ai', '語音辨識錯誤，請再試一次');
+    };
+
+    document.getElementById('inputArea').appendChild(voiceButton);
+
+    appendMsg('ai', '您好！請輸入或語音詢問要推薦的禮物或餐廳 🍱🎁');
+  // 歷史紀錄載入與插入
+  // 新增手動新增紀錄表單功能
+  document.getElementById('addRecordForm').onsubmit = function(e) {
+    e.preventDefault();
+    const name = document.getElementById('addName').value.trim();
+    const date = document.getElementById('addDate').value;
+    const gift = document.getElementById('addGift').value.trim();
+    const restaurant = document.getElementById('addRestaurant').value.trim();
+    if (!name || !date || !gift || !restaurant) return;
+    const data = JSON.parse(localStorage.getItem('records') || '[]');
+    data.push({ name, date, gift, restaurant });
+    localStorage.setItem('records', JSON.stringify(data));
+    this.reset();
+    loadHistory();
+  };
+  function loadHistory() {
+    const history = document.getElementById('history');
+    // 清除有 undefined 欄位的紀錄
+    let data = JSON.parse(localStorage.getItem('records') || '[]');
+    data = data.filter(r => r.name && r.date && r.gift && r.restaurant && r.name !== 'undefined' && r.date !== 'undefined' && r.gift !== 'undefined' && r.restaurant !== 'undefined');
+    localStorage.setItem('records', JSON.stringify(data));
+
+    if (data.length === 0) {
+      history.innerHTML = "<p style='color:gray;'>尚無紀錄</p>";
+      return;
+    }
+
+    history.innerHTML = '<h3>🎁 歷史送禮紀錄</h3>' + data.map(r =>
+      `<div style='margin-bottom:8px;'><strong>${r.name}</strong>－${r.date}－${r.gift}－${r.restaurant}<br>
+      <button onclick="insertRecord('${r.name}', '${r.gift}', '${r.date}', '${r.restaurant}')">使用這筆紀錄</button>
+      <div style='font-size:0.95em;color:#6d4c41;margin-top:2px;'>生日：${r.date}｜禮物：${r.gift}｜餐廳：${r.restaurant}</div></div>`
+    ).join('');
+
+    // 顯示今日壽星
+    const today = new Date();
+    const mmdd = ('0' + (today.getMonth() + 1)).slice(-2) + '/' + ('0' + today.getDate()).slice(-2);
+    const birthdayList = data.filter(r => {
+      // 支援 yyyy-mm-dd 或 yyyy/mm/dd
+      const d = r.date.replace(/-/g, '/');
+      return d.slice(5) === mmdd;
+    });
+    let birthdayHtml = `<div id="today-birthday" style="margin-top:18px;padding:10px 12px;background:#fff3e0;border-radius:8px;border:1px solid #ffcc80;">
+      <b>🎂 今日壽星：</b>`;
+    if (birthdayList.length > 0) {
+      birthdayHtml += birthdayList.map(r => `<span style='color:#ef6c00;font-weight:bold;'>${r.name}</span>（${r.date}）`).join('、');
+    } else {
+      birthdayHtml += '<span style="color:gray;">無</span>';
+    }
+    birthdayHtml += '</div>';
+    history.innerHTML += birthdayHtml;
+  }
+
+  window.insertRecord = function(name, gift, date, restaurant) {
+    const question = `幫我推薦送給${name}的新禮物，去年送的是${gift}，生日是${date}，去年餐廳是${restaurant}，請不要重複。`;
+    userInput.value = question;
+    askAI(question);
+  }
+
+  // (已合併於上方 window.onload)
+  </script>
+</body>
+</html>

@@ -1,0 +1,19 @@
+body {
+  font-family: 'Microsoft JhengHei', sans-serif;
+  background: #fffdee;
+  padding: 20px;
+  line-height: 1.6;
+}
+h1 {
+  color: #ff6f61;
+}
+form, #aiResponse {
+  margin-top: 20px;
+}
+#history {
+  margin-top: 16px;
+}
+input, button {
+  padding: 8px;
+  margin: 5px;
+}
